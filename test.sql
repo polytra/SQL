@@ -58,9 +58,12 @@ INSERT INTO users (name) VALUES
 
 ![alt text](image-4.png)
 
-2)  нажимаем commit 
+2)  придумываем комментарий и вбиваем его в message, затем нажимаем commit 
 
 ![alt text](image-5.png)
+
+3) подтверждаем выгрузку
+
 
 
 
