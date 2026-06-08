@@ -312,3 +312,82 @@ FROM Customers
 /*markdown
 Count (*) - Высчитывает все количества строк в таблице, в то время, как Count (столбец) - не нулевые значения. Соответственно, Из общего вычитаем не нулевые значения. При возвращении селекта - получает два ответа - у кого есть факс, у кого его нет.
 */
+
+/*markdown
+При GROUP BY, в селект записывается только, почему происходит группировка, то есть SELECT & GROUP BY записывается тоже самое.
+*/
+
+SELECT Type
+FROM Titlies
+GROUP BY Type
+
+/*markdown
+Сколько людей живет в каждом городе?
+*/
+
+SELECT City, Count(*)
+FROM Customers
+GROUP BY City
+
+/*markdown
+Сколько заказов было оформлено в каждую страну?
+*/
+
+SELECT ShipCountry, Count(*)
+FROM Orders
+GROUP BY ShipCountry
+
+/*markdown
+Сколько товаров в каждой товарной категории?
+*/
+
+SELECT CategoryID, Count(*) AS Сумма товаров
+FROM Products
+GROUP BY CategoryID
+ORDER BY Сумма товаров DESC
+
+/*markdown
+В какую страну оформлено больше всего заказов?
+*/
+
+SELECT TOP (1) WITH TIES ShipCountry, Count(*) Количество заказов
+FROM Orders
+GROUP BY ShipCountry
+ORDER BY Количество заказов DESC
+
+/*markdown
+Какой продавец поставил рекорд по количеству заказов, оформленных в течение месяца в один и тот же город?
+*/
+
+SELECT TOP (1) WITH TIES EmployeesID, Count (*)
+FROM Orders
+GROUP BY EmployeesID, ShipCity, Year(OrderDate), Month(OrderDate)
+ORDER BY Count(*) DESC
+
+/*markdown
+В какой город первый продавец оформил больше всего заказов для одного клиента? 
+*/
+
+SELECT TOP (1) WITH TIES ShipCity, Count (*)
+FROM Orders
+WHERE EmpoyeeID = 1
+GROUP BY ShipCity, CustomerID
+ORDER BY Count (*) DESC 
+
+/*markdown
+Какой покупатель чаще всех обслуживался у одного и того же продавца?
+*/
+
+SELECT TOP (1) WITH TIES CustomerID --, EmployeesID, Count(*)
+FROM Orders
+GROUP BY CustomerID, EmployeesID
+ORDER BY Count (*) DESC 
+
+/*markdown
+Скольких французов обслужил каждый продавец?
+*/
+
+SELECT  EmployeesID, Count(DISTINCT CustomerID)
+FROM Orders
+WHERE ShipCountry = 'France'
+GROUP BY  EmployeesID
