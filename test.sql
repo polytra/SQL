@@ -431,3 +431,354 @@ SELECT     DISTINCT EmployeeID, --Count(DISTINCT ShipCity)
 FROM        Orders
 GROUP BY    EmployeeID, ShipCountry
 HAVING      Count(DISTINCT ShipCity) > 5
+
+/*markdown
+Стратегии объединения таблиц.
+*/
+
+/*markdown
+1. INTERSECT (Пересечения *входит в А и Б)
+2. UNION (ALL, DISTINCT) (Объединения * Или А, Или Б, или А и Б)
+3. JOIN (CROSS, OUTER (LEFT, FULL, RIGHT), APPLY (CROSS, OUTER), INNER)
+4. EXCEPT (Только А, или только Б)
+5. Подзапрос (Простыея, связанные)
+*/
+
+/*markdown
+UNION 
+*/
+
+/*markdown
+Для объединения таблиц с помощью UNION, необходима одинаковая структра таблиц. 
+ПРимер объединения таблиц.
+*/
+
+SELECT  FirstName + ' ' + LastName, City
+FROM    Employees
+    UNION
+SELECT  ContactName, City
+FROM    Customers
+*ORDER BY
+
+/*markdown
+Сортировка осуществляется и прописывается после всех селектов и "объединений". 
+*/
+
+/*markdown
+ПОДЗАПРОСЫ
+*/
+
+/*markdown
+Сколько товаров в каждой категории?
+*/
+
+SELECT  CategoryID, CategoryName,
+        (
+            SELECT  Count (*)
+            FROM    Products
+            WHERE   CategoryID = Categories.CategoryID
+        )
+FROM    Categories
+
+/*markdown
+Categories.CategoryID - Название таблицы.Название столбца
+*/
+
+/*markdown
+Сколько заказов сделал каждый продавец?
+*/
+
+SELECT  FirstName + ' ' + LastName , 
+        (
+            SELECT  Count(*)
+            FROM    Orders
+            WHERE   EmployeeID = Employees.EmployeeID
+        )
+FROM    Employees
+
+/*markdown
+Сколько заказов сделал каждый покупатель в 1997 году?
+*/
+
+SELECT  ContactName, 
+        (
+            SELECT  Count(*)
+            FROM    Orders
+            WHERE   Year(OrderDate) = 1997
+                AND CustomerID = Customers.CustomerID
+        )
+FROM    Customers
+
+/*markdown
+Посчитать выручку с каждого товара.
+*/
+
+SELECT  ProductName, 
+        (
+            SELECT  Round(Sum(UnitPrice * Quantity * (1-Discount)),2)
+            FROM    [Order Details]
+            WHERE   ProductID = Products.ProductID
+        )
+FROM    Products
+
+/*markdown
+Какие продавцы обслужили нескольких клиентов из одного города?
+*/
+
+SELECT      DISTINCT EmployeeID --, Count(DISTINCT CustomerID)
+FROM        Orders
+GROUP BY    EmployeeID, ShipCity
+HAVING      Count(DISTINCT CustomerID) > 1
+
+/*markdown
+На каких товарах компания недополучила из-за скидок больше 1000?
+*/
+
+SELECT  ProductName
+FROM    Products
+WHERE       (
+                SELECT  Sum (UnitPrice * Quantity * Discount)
+                FROM    [Order Details]
+                WHERE   ProductID = Products.ProductID
+            ) > 1000
+ORDER BY    (
+                SELECT  Sum (UnitPrice * Quantity * Discount)
+                FROM    [Order Details]
+                WHERE   ProductID = Products.ProductID
+            ) DESC 
+
+/*markdown
+Как зовут покупателя, который сделал больше всех заказов в 1997 году?
+*/
+
+SELECT      TOP (1) WITH TIES ContactName
+FROM        Customers
+ORDER BY    (
+                SELECT  Count(*)
+                FROM    Orders
+                WHERE   CustomerID = Customers.CustomerID
+                        Year (OrderDate) = 1997
+            ) DESC
+
+/*markdown
+С каким городом работало больше всего продавцов-торговых представителей?
+*/
+
+SELECT  ShipCity, Sum (Num)
+FROM    (
+            SELECT  ShipCity, 
+                    (
+                        SELECT  Count(*)
+                        FROM    Employees
+                        WHERE   EmployeeID = Orders.EmployeeID
+                                AND Title = 'Sales Representative'
+                )    AS Num
+            FROM    Orders
+        ) MyTable
+GROUP BY  ShipCity
+ORDER BY  Sum (Num) DESC
+
+/*markdown
+Как зовут продавцов, которые в 1997 году работали как минимум с 10-ю странами?
+*/
+
+SELECT      FirstName + ' ' + LastName
+FROM        Employees
+WHERE       (
+                SELECT  Count (DISTINCT ShipCountry)
+                FROM    Orders
+                WHERE   EmployeeID = Employees.EmployeeID
+                        AND Year (OrderDate) = 1997
+            ) > 10
+
+/*markdown
+Чтобы подзапрос был записан в разделе FROM, он должен удволетворять 3-м показателям.
+*/
+
+/*markdown
+1. Не должна присутствовать сортировка.
+2. Все cтолбцы, которые запихивают в подзапрос, должны быть названы (проименованы), поскольку подзапрос "прикидывается" таблицей.
+3. Селект, который является подзапросом - должен иметь название - AS MyTable.
+*/
+
+/*markdown
+Какие продавцы в 1997 году поработали более чем с 50 разными товарами?
+*/
+
+--Мое решение
+SELECT  EmployeeID, 
+        (
+            SELECT  Count (DISTINCT ProductID)
+            FROM    [Order Details]
+            WHERE   Count (DISTINCT ProductID) > 50
+        )
+FROM    Orders
+WHERE   Year (OrderDate) = 1997
+
+--Верное решение
+SELECT  FirstName + ' ' + LastName
+FROM    Employees
+WHERE   (
+            SELECT  Count (DISTINCT ProductID)
+            FROM    [Order Details]
+            WHERE   OrderID IN (
+                                    SELECT  OrderID
+                                    FROM    Orders
+                                    WHERE   EmployeeID = Employees.EmployeeID
+                                            AND Year (OrderDate) = 1997
+                                )
+        ) > 50
+
+/*markdown
+Какие продавцы в 1997 году более чем  5000 штук товаров?
+*/
+
+SELECT      EmployeeID, SUM(Total)
+FROM        (
+                SELECT  EmployeeID,
+                    (
+                            SELECT  SUM (Quantity)
+                            FROM    [Order Details]
+                            WHERE   OrderID = Orders.OrderID
+                        ) AS Total
+                FROM    Orders
+                WHERE   Year (OrderDate) = 1997
+            ) AS MyTable
+GROUP BY    EmployeeID    
+HAVING      SUm (Total) > 5000
+
+/*markdown
+Сколько денег заработал каждый продавец?
+*/
+
+SELECT  FirstName + ' ' + LastName,
+        (
+            SELECT  Sum(UnitPrice * Quantity * (1 - Discount))
+            FROM    [Order Details]
+            WHERE   OrderID IN (
+                                    SELECT  OrderID
+                                    FROM    Orders
+                                    WHERE   EmployeeID = Employees.EmployeeID
+                                )
+        )
+FROM    Employees
+
+/*markdown
+Сколько денег мы заработали на каждой категории? (Вывести название категории и деньги)
+*/
+
+SELECT  CategoryName, 
+        (
+            SELECT  Sum(UnitPrice * Quantity * (1 - Discount))
+            FROM    [Order Details]
+            WHERE   ProductID IN (
+                                    SELECT  ProductID
+                                    FROM    Products
+                                    WHERE   CategoryID = Categories.CategoryID
+            )
+        )
+FROM    Categories
+
+/*markdown
+Каким товаром заинтересовалось больше всего покупателей? (Вывести Название товара, CustomerID)
+*/
+
+-- Мое решение
+SELECT  ProductName, 
+        (
+            SELECT  CustomerID
+            FROM    Orders
+            WHERE   OrderID IN (
+                                    SELECT  OrderID
+                                    FROM    [Order Details]
+                                    WHERE   ProductID = Products.ProductID
+                                )
+        )
+FROM    Products
+
+-- Верное решение/ Не посчитала покупателей, а также нет сортировки
+SELECT      TOP (1) WITH TIES ProductName
+FROM        Products
+ORDER BY    (
+                SELECT  Count (DISTINCT CustomerID)
+                FROM    Orders 
+                WHERE   OrderID IN (
+                                        SELECT  OrderID
+                                        FROM    [Order Details]
+                                        WHERE   ProductID = Products.ProductID
+                                    )
+            )
+
+/*markdown
+Итог по ПОДЗАПРОСАМ
+
+1. Список чего я хочу получить в конце? -> пишем внешний селект к таблице, содержащий этот список.
+2. Как только сталкиваемся с нехваткой чего-то, спрашиваем: "В какой таблице лежит то, чего нам сейчас не хватает?" -> Пишем вложенный запрос к этой таблице
+*/
+
+/*markdown
+Какой покупатель в 1997 потратил больше всех денег на напитки ("Beverages")? (CustomerID)
+*/
+
+-- Мое решение/Супер неверно сделала
+SELECT          TOP (1) WITH TIES ContactName
+FROM            Customers
+ORDER BY                (
+                                SELECT  CatedoryName
+                                FROM    Categories
+                                WHERE   CategoryID IN (
+                                                        SELECT ProductID
+                                                        FROM   Products 
+                                                        WHERE  ProductID IN (
+                                                                                SELECT  Sum(UnitPrice * Quantity * (1 - Discount))
+                                                                                FROM    [Order Details]
+                                                                                WHERE   OrderID IN (
+                                                                                                                SELECT  OrderID
+                                                                                                                FROM    Orders
+                                                                                                                WHERE   Year (OrderDate) = 1997
+                                                                                                                        AND CustomerID = Customers.CustomerID
+                                                                                                        )
+                                                                                )
+                                                        ) 
+                                        AND CatedoryName = 'Beverages'
+                        ) DESC
+
+-- Верное решение
+SELECT      TOP (1) WITH TIES ContactName
+FROM        Customers
+ORDER BY    (
+                SELECT  Sum(UnitPrice * Quantity * (1 - Discount))
+                FROM    [Order Details]
+                                        SELECT ProductID
+                                        FROM   Products 
+                                        WHERE  CategoryID = (
+                                                                SELECT  CategoryID
+                                                                FROM    Categories
+                                                                WHERE   CatedoryName = 'Beverages'
+                                                             )
+                                                                AND OrderID IN (
+                                                                                    SELECT  OrderID
+                                                                                    FROM    Orders
+                                                                                    WHERE   Year (OrderDate) = 1997
+                                                                                    AND CustomerID = Customers.CustomerID
+                                                                                )
+                                        )
+                ) DESC
+
+/*markdown
+JOIN
+
+CROSS JOIN (Перемножение таблиц). ВСе возможные сочетания строк из двух таблиц.
+
+*/
+
+SELECT  *
+FROM    Categories
+
+SELECT  *
+FROM    Employees
+
+-- Для успешного CROSS JOIN, пишется так
+
+SELECT  *
+FROM    Categories CROSS JOIN Employees
