@@ -711,7 +711,9 @@ ORDER BY    (
 
 /*markdown
 Итог по ПОДЗАПРОСАМ
+*/
 
+/*markdown
 1. Список чего я хочу получить в конце? -> пишем внешний селект к таблице, содержащий этот список.
 2. Как только сталкиваемся с нехваткой чего-то, спрашиваем: "В какой таблице лежит то, чего нам сейчас не хватает?" -> Пишем вложенный запрос к этой таблице
 */
@@ -749,6 +751,7 @@ FROM        Customers
 ORDER BY    (
                 SELECT  Sum(UnitPrice * Quantity * (1 - Discount))
                 FROM    [Order Details]
+                WHERE   ProductID = (
                                         SELECT ProductID
                                         FROM   Products 
                                         WHERE  CategoryID = (
@@ -756,29 +759,315 @@ ORDER BY    (
                                                                 FROM    Categories
                                                                 WHERE   CatedoryName = 'Beverages'
                                                              )
-                                                                AND OrderID IN (
-                                                                                    SELECT  OrderID
-                                                                                    FROM    Orders
-                                                                                    WHERE   Year (OrderDate) = 1997
-                                                                                    AND CustomerID = Customers.CustomerID
-                                                                                )
+                                                AND OrderID IN (
+                                                                  SELECT  OrderID
+                                                                  FROM    Orders
+                                                                  WHERE   Year (OrderDate) = 1997
+                                                                  AND CustomerID = Customers.CustomerID
+                                                                  )
                                         )
                 ) DESC
 
 /*markdown
 JOIN
 
-CROSS JOIN (Перемножение таблиц). ВСе возможные сочетания строк из двух таблиц.
+*/
 
+/*markdown
+CROSS JOIN (Перемножение таблиц). ВСе возможные сочетания строк из двух таблиц.
 */
 
 SELECT  *
 FROM    Categories
-
 SELECT  *
 FROM    Employees
-
 -- Для успешного CROSS JOIN, пишется так
-
 SELECT  *
 FROM    Categories CROSS JOIN Employees
+
+/*markdown
+Сколько товаров в каждой категории?
+*/
+
+SELECT      Categories.CategoryID, CatedoryName, Count (*)
+FROM        Categories CROSS JOIN Products -- Необходимо "заджойнить" те таблицы, которые перечислены в вопросе задачи, а также все, которые лежат между ними
+WHERE       Categories.CategoryID = Products.CategoryID -- Прописывается РАВЕНСТВО ПЕРВИЧНОГО КЛЮЧА И ВНЕШНЕГО КЛЮЧА
+GROUP BY    Categories.CategoryID, CatedoryName
+
+/*markdown
+Сколько заказов сделал каждый продавец?
+*/
+
+SELECT      FirstName + ' ' + LastName, Count (*)
+FROM        Orders O CROSS JOIN Employees E
+WHERE       E.EmployeeID = O.EmployeeID
+GROUP BY    FirstName + ' ' + LastName
+
+/*markdown
+Сколько денег заработала компания на каждом товаре? (Название товара, деньги)
+*/
+
+SELECT      TOP (1) WITH TIES P.ProductsName--,  Sum (OD.UnitPrice * Quanity * (1 - Discount))
+FROM        Products P CROSS JOIN [Order Details] OD
+WHERE       P.ProductsID = OD.ProductsID
+GROUP BY    P.ProductsName
+ORDER BY    Sum (OD.UnitPrice * Quanity * (1 - Discount)) DESC -- UnitPrice необходимо уточнить из какой таблицы взято, потому что данный столбец есть в обеих таблицах
+
+/*markdown
+Какие продавцы обслужили больше 20 покупателей в 1997 (ФИО Еmployees)
+*/
+
+SELECT      FirstName + ' ' + LastName
+FROM        Employees E CROSS JOIN Orders O
+WHERE       E.EmployeeID = O.EmployeeID
+            AND Year (OrderDate) = 1997
+GROUP BY    FirstName + ' ' + LastName
+HAVING      Count (DISTINCT CustomerID) > 20
+
+/*markdown
+Какие покупатели обслуживались в 1997 году у проадвца №1(вывести ФИО кастамеров)?
+*/
+
+SELECT      C.ContactName
+FROM        Customers C CROSS JOIN Orders O
+WHERE       C.CustomerID = O.CustomerID
+            AND Year (OrderDate) = 1997
+            AND O.EmployeeID = 1
+GROUP BY    C.ContactName
+
+/*markdown
+Какой покупатель в 1997 потратил больше всех денег на напитки ("Beverages")? (CustomerID)
+*/
+
+SELECT      TOP (1) WITH TIES C.ContactName
+FROM        Customers C CROSS JOIN Ordes O CROSS JOIN [Order Details] OD CROSS JOIN Products P CROSS JOIN Catigories Cat 
+WHERE       C.CustomerID = O.CustomerID
+            AND O.OrderID = OD.OrderID
+            AND OD.ProductID = P.ProductID
+            AND P.CatigoryID = Cat.CatigoryID
+            AND Year (OrderDate) = 1997
+            AND Cat.CategoryName = 'Beverages'
+GROUP BY    C.ContactName
+ORDER BY    Sum(OD.UnitPrice * Quanity * (1 - Discount)) DESC
+
+/*markdown
+INNER JOIN
+Условие, прописываемое в WHERE, записывается в JOIN, после записи ON
+Первый пример с CROSS, второй пример с INNER. Везде ответы одинаковые.
+*/
+
+SELECT      C.ContactName
+FROM        Customers C CROSS JOIN Orders O
+WHERE       C.CustomerID = O.CustomerID
+            AND Year (OrderDate) = 1997
+            AND O.EmployeeID = 1
+GROUP BY    C.ContactName
+--------------------------------------------
+SELECT      C.ContactName
+FROM        Customers C INNER JOIN Orders O
+            ON C.CustomerID = O.CustomerID
+            AND O.EmployeeID = 1
+WHERE       Year (OrderDate) = 1997
+GROUP BY    C.ContactName
+--------------------------------------------
+SELECT      C.ContactName
+FROM        Customers C INNER JOIN Orders O
+            ON C.CustomerID = O.CustomerID
+            AND Year (OrderDate) = 1997
+            AND O.EmployeeID = 1
+GROUP BY    C.ContactName
+
+/*markdown
+Пример как меняется синтаксис в зависимости от JOIN
+*/
+
+-- Пример с CROSS
+SELECT      TOP (1) WITH TIES C.ContactName
+FROM        Customers C CROSS JOIN Ordes O CROSS JOIN [Order Details] OD CROSS JOIN Products P CROSS JOIN Catigories Cat 
+WHERE       C.CustomerID = O.CustomerID
+            AND O.OrderID = OD.OrderID
+            AND OD.ProductID = P.ProductID
+            AND P.CatigoryID = Cat.CatigoryID
+            AND Year (OrderDate) = 1997
+            AND Cat.CategoryName = 'Beverages'
+GROUP BY    C.ContactName
+ORDER BY    Sum(OD.UnitPrice * Quanity * (1 - Discount)) DESC
+------------------------------------------------------------------
+--Пример с INNER
+SELECT      TOP (1) WITH TIES C.ContactName
+FROM        Customers C INNER JOIN Ordes O
+                ON C.CustomerID = O.CustomerID
+            INNER JOIN [Order Details] OD 
+                ON O.OrderID = OD.OrderID
+            INNER JOIN Products P 
+                ON OD.ProductID = P.ProductID
+            INNER JOIN Catigories Cat 
+                ON P.CatigoryID = Cat.CatigoryID
+WHERE       Year (OrderDate) = 1997
+            AND Cat.CategoryName = 'Beverages'
+GROUP BY    C.ContactName
+ORDER BY    Sum(OD.UnitPrice * Quanity * (1 - Discount)) DESC
+
+/*markdown
+Какой покупатель приобрел самый широкий ассортимент товаров? (фио Кастомера)
+*/
+
+SELECT      TOP (1) WITH TIES C.ContactName
+FROM        Customers C INNER JOIN Orders O
+            ON C.CustomerID = O.CustomerID
+            INNER JOIN [Order Details] OD
+            ON O.OrderID = OD.OrderID
+GROUP BY    C.ContactName
+ORDER BY    Count (DISTINCT OD.ProductID) DESC
+
+/*markdown
+СКолько заказов сделал каждый покупатель? (ФИО кастомеров)
+*/
+
+SELECT      C.ContactName, Count(*)
+FROM        Customers C INNER JOIN Orders O
+            ON C.CustomerID = O.CustomerID
+GROUP BY    C.ContactName
+
+/*markdown
+Решение неверное, поскольку INNER не учитывает тех, у кого нет заказов. В данном случае нужно использовать LEFT JOIN.
+Также, Count(*) использовать нельзя. Добавлять необходимо первичный ключ в Count (из таблицы, что приходит "справа")
+*/
+
+SELECT      C.ContactName, Count(O.OrderID)
+FROM        Customers C LEFT JOIN Orders O
+            ON C.CustomerID = O.CustomerID
+GROUP BY    C.ContactName
+
+/*markdown
+Сколько заказов оформил каждый продавец в Париж? (ФИО продавцов, количество заказов в Париж)
+*/
+
+SELECT      (FirstName + ' ' + LastName) AS E.FIO, Count(O.OrderID)
+FROM        Employees E LEFT JOIN Orders O
+            ON E.EmployeeID = O.EmployeeID
+WHERE       ShipCity = 'Paris'
+GROUP BY    E.FIO
+
+/*markdown
+Поскольку LEFT JOIN сохраняет все строки левой таблицы, RIGHT JOIN сохраняет строки правой таблицы, то FULL JOIN сначала сохраняет строки левой таблицы, а затем правой. 
+*/
+
+/*markdown
+Сколько денег заработал каждый продавец на торговле с Лондоном? (ФИО продавцов, количество заказов в Париж)
+*/
+
+SELECT      (FirstName + ' ' + LastName) AS E.FIO, Count(O.OrderID), (Sum (OD.UnitPrice * Quanity * (1 - Discount))) AS Total
+FROM        Employees E LEFT JOIN Orders O
+            ON E.EmployeeID = O.EmployeeID
+            LEFT JOIN [Order Details] OD
+            ON O.OrderID = OD.OrderID
+            AND ShipCity = 'London'
+GROUP BY    E.FIO
+
+-- ВЕрное решение
+SELECT      (FirstName + ' ' + LastName) AS E.FIO,(Sum (OD.UnitPrice * Quanity * (1 - Discount))) AS Total
+FROM        Employees E LEFT JOIN Orders O
+            ON E.EmployeeID = O.EmployeeID
+            AND ShipCity = 'London'
+            LEFT JOIN [Order Details] OD
+            ON O.OrderID = OD.OrderID
+GROUP BY    E.FIO
+
+/*markdown
+Сколько денег заработал каждый продавец на продаже товара №1 в Лондон?
+*/
+
+/*markdown
+Чтобы значения NULL отображались как 0, необходимо написать перед агрегацией - IsNULL (агрегация)
+*/
+
+SELECT      (FirstName + ' ' + LastName) AS E.FIO,(Sum (OD.UnitPrice * Quanity * (1 - Discount))) AS Total
+FROM        Employees E LEFT JOIN Orders O
+            ON E.EmployeeID = O.EmployeeID
+            AND ShipCity = 'London'
+            LEFT JOIN [Order Details] OD
+            ON O.OrderID = OD.OrderID
+            AND OD.ProductID = 1
+GROUP BY    E.FIO
+
+/*markdown
+Сколько денег заработал каждый продавец на продаже чая (ProductName = 'Chai') в Лондон?
+*/
+
+SELECT      (FirstName + ' ' + LastName) AS E.FIO,(Sum (OD.UnitPrice * Quanity * (1 - Discount))) AS Total
+FROM        Employees E LEFT JOIN Orders O
+            ON E.EmployeeID = O.EmployeeID
+            AND ShipCity = 'London'
+            LEFT JOIN [Order Details] OD
+            ON O.OrderID = OD.OrderID
+            LEFT JOIN Products P 
+            ON OD.ProductID = P.ProductID
+            AND ProductName = 'Chai'
+GROUP BY    E.FIO
+
+-- Верное решение
+SELECT      (FirstName + ' ' + LastName) AS E.FIO,(Sum (OD.UnitPrice * Quanity * (1 - Discount))) AS Total
+FROM        Employees E LEFT JOIN 
+                (
+                    Orders O INNER JOIN [Order Details] OD
+                    ON O.OrderID = OD.OrderID
+                    AND ShipCity = 'London'
+                    INNER JOIN Products P 
+                    ON OD.ProductID = P.ProductID
+                    AND ProductName = 'Chai'
+                )
+            ON E.EmployeeID = O.EmployeeID
+GROUP BY    E.FIO
+
+/*markdown
+Сколько денег потратил покупатель 'VINET' на каждую категорию товара?
+*/
+
+-- Решение через подзапросы
+SELECT      CategoryName
+FROM        Categories
+ORDER BY    (
+                SELECT   (Sum(UnitPrice * Quanity * (1-Discount))) AS Total 
+                FROM     [Order Details]
+                WHERE    OrderID = (
+                                        SELECT  OrderID
+                                        FROM    Orders
+                                        WHERE   CustomerID = 'VINET'
+                                    )
+                    AND  ProductID = (
+                                        SELECT  ProductID
+                                        FROM    Products
+                                        WHERE   CatedoryID = Categories.CatedoryID
+                        )
+                )       
+
+--Верное решение
+SELECT      CategoryName, (
+                SELECT   (Sum(UnitPrice * Quanity * (1-Discount))) AS Total 
+                FROM     [Order Details]
+                WHERE    OrderID IN (
+                                        SELECT  OrderID
+                                        FROM    Orders
+                                        WHERE   CustomerID = 'VINET'
+                                    )
+                   AND  ProductID IN (
+                                        SELECT  ProductID
+                                        FROM    Products
+                                        WHERE   CatedoryID = Categories.CatedoryID
+                        )
+                )
+FROM        Categories
+
+-- Решение через JOIN
+SELECT      CategoryName, (Sum (OD.UnitPrice * Quanity * (1 - Discount))) AS Total
+FROM        Categories Cat LEFT JOIN 
+            (
+                Products P INNER JOIN [Order Details] OD
+                ON P.ProductID = OD.ProductID
+                INNER JOIN Order O 
+                ON OD.OrderID = O.Order
+                AND CustomerID = 'VINET'
+            )
+            ON Cat.CatedoryID = P.CatedoryID
+GROUP BY    CategoryName
